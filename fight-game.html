@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>УЛИЧНЫЙ БОЙ</title>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#0e0e12;
+    --sky1:#2b2140;
+    --sky2:#3d2b57;
+    --road:#26232b;
+    --side:#4a4550;
+    --hp-green:#3ddc63;
+    --hp-red:#ff4d4d;
+    --hp-back:#222;
+    --ui:#f4d35e;
+  }
+  *{box-sizing:border-box; image-rendering:pixelated;}
+  html,body{
+    margin:0; padding:0; height:100%; overflow:hidden;
+    background:#000; font-family:'Press Start 2P', monospace;
+    color:#fff; -webkit-user-select:none; user-select:none;
+  }
+  #frame{
+    position:relative; width:100%; height:100%; min-height:540px;
+    border:8px solid var(--ink); box-sizing:border-box; background:#111;
+  }
+  .screen{ position:absolute; inset:0; display:none; flex-direction:column; align-items:center; }
+  .screen.active{ display:flex; }
+
+  h1.title{
+    font-size:clamp(11px,2.6vw,20px); letter-spacing:2px; text-align:center;
+    margin:16px 0 6px 0; color:var(--ui); text-shadow:3px 3px 0 #7a4b1a;
+  }
+  .sub{ font-size:8px; color:#bbb; margin-bottom:10px; letter-spacing:1px; }
+
+  /* ---------------- SELECT SCREEN ---------------- */
+  .roster{ display:flex; align-items:flex-end; justify-content:center; gap:6vw; flex:1; width:100%; padding:0 3vw; }
+  .fighter-card{
+    display:flex; flex-direction:column; align-items:center; cursor:pointer;
+    padding:10px; border:3px solid #333; border-radius:0; background:#181820;
+    transition:border-color .15s;
+  }
+  .fighter-card:hover{ border-color:#555; }
+  .fighter-card.picked{ border-color:var(--ui); box-shadow:0 0 0 3px #7a4b1a inset; }
+  .fighter-name{ font-size:10px; color:var(--ui); margin-top:8px; letter-spacing:1px; }
+  .preview-box{ position:relative; width:80px; height:120px; }
+  .vs-label{ font-size:22px; color:#e05555; align-self:center; margin-bottom:60px; text-shadow:2px 2px 0 #000; }
+  .pick-mark{ font-size:9px; margin-top:6px; color:#3ddc63; visibility:hidden; }
+  .fighter-card.picked .pick-mark{ visibility:visible; }
+  .start-banner{
+    margin:16px 0 22px 0; background:#3ddc63; color:#0e0e12; font-size:14px;
+    padding:12px 30px; border:3px solid #0e0e12; cursor:pointer; letter-spacing:2px;
+    opacity:.4; pointer-events:none; box-shadow:4px 4px 0 #1a1a1a;
+  }
+  .start-banner.ready{ opacity:1; pointer-events:auto; }
+  .start-banner.ready:active{ transform:translate(3px,3px); box-shadow:1px 1px 0 #1a1a1a; }
+
+  /* ---------------- FIGHT SCREEN ---------------- */
+  #fight-screen{ justify-content:flex-start; }
+  .hud{ width:100%; display:flex; justify-content:space-between; padding:10px 3vw 0; gap:16px; }
+  .hp-block{ flex:1; max-width:42%; }
+  .hp-name{ font-size:9px; color:var(--ui); margin-bottom:4px; }
+  .hp-bar-outer{ height:14px; border:2px solid #000; background:var(--hp-back); position:relative; }
+  .hp-bar-outer.right{ direction:rtl; }
+  .hp-bar-inner{ height:100%; background:var(--hp-green); width:100%; transition:width .3s steps(10); }
+  .hp-bar-inner.low{ background:var(--hp-red); }
+
+  .stage{
+    position:relative; flex:1; width:100%; overflow:hidden;
+    background:linear-gradient(var(--sky1), var(--sky2) 55%, var(--road) 55%, var(--road) 78%, var(--side) 78%);
+  }
+  .stars{ position:absolute; top:0; left:0; right:0; height:55%; }
+  .star{ position:absolute; width:2px; height:2px; background:#fff; opacity:.8; }
+  .moon{ position:absolute; top:14px; right:10%; width:26px; height:26px; background:#f4f1c9; border:3px solid #000; }
+  .moon::after{ content:""; position:absolute; top:6px; left:5px; width:6px; height:6px; background:#d8d49a; }
+  .moon::before{ content:""; position:absolute; top:14px; left:14px; width:5px; height:5px; background:#d8d49a; }
+  .building{ position:absolute; bottom:0; background:#221a33; border-top:3px solid #150f22; }
+  .window{ position:absolute; width:5px; height:7px; background:#f4d35e; opacity:.85; }
+  .lamp-pole{ position:absolute; bottom:22%; width:4px; background:#111; }
+  .lamp-head{ position:absolute; width:14px; height:10px; background:#111; }
+  .lamp-glow{ position:absolute; width:18px; height:18px; background:radial-gradient(#f7e8a4,#f7e8a400 70%); }
+  .road-line{ position:absolute; bottom:11%; height:4px; background:#f4d35e; opacity:.85; }
+
+  .sprite{ position:absolute; width:60px; height:96px; bottom:22%; }
+  .sprite .part{ position:absolute; border:2px solid #000; box-sizing:border-box; }
+  .sprite .head{ width:26px; height:24px; left:17px; top:0; }
+  .sprite .hair{ position:absolute; border:2px solid #000; }
+  .sprite .eye{ position:absolute; width:5px; height:5px; background:#fff; border:1px solid #000; }
+  .sprite .pupil{ position:absolute; width:2px; height:2px; background:#000; }
+  .sprite .mouth{ position:absolute; background:#7a2a2a; }
+  .sprite .torso{ width:32px; height:30px; left:14px; top:22px; }
+  .sprite .arm{ width:9px; height:26px; top:24px; transform-origin: top center; }
+  .sprite .arm.l{ left:5px; }
+  .sprite .arm.r{ left:46px; }
+  .sprite .leg{ width:12px; height:30px; top:50px; transform-origin: top center; }
+  .sprite .leg.l{ left:16px; }
+  .sprite .leg.r{ left:32px; }
+  .sprite .shoe{ position:absolute; width:12px; height:6px; background:#111; bottom:-2px; }
+
+  .sprite.face-right{ transform:scaleX(1); }
+  .sprite.face-left{ transform:scaleX(-1); }
+
+  /* Vanek palette */
+  .van .head{ background:#e8b48a; }
+  .van .hair{ background:#151515; }
+  .van .torso{ background:#5b6b74; }
+  .van .arm{ background:#5b6b74; }
+  .van .leg{ background:#2c3e50; }
+
+  /* Petyan palette */
+  .pet .head{ background:#e8b48a; }
+  .pet .hair{ background:#4a2f18; }
+  .pet .torso{ background:#c23b3b; }
+  .pet .arm{ background:#c23b3b; }
+  .pet .leg{ background:#25324a; }
+
+  .hurt-flash{ animation: flashRed .3s steps(2); }
+  @keyframes flashRed{ 0%,100%{ filter:none; } 50%{ filter:brightness(2) saturate(0) sepia(1) hue-rotate(-50deg); } }
+
+  .shake{ animation: shakeAnim .3s; }
+  @keyframes shakeAnim{ 0%,100%{ margin-left:0; } 25%{ margin-left:-5px; } 75%{ margin-left:5px; } }
+
+  .walk .leg.l{ animation: walkL .4s infinite; }
+  .walk .leg.r{ animation: walkR .4s infinite; }
+  @keyframes walkL{ 0%,100%{ transform:rotate(28deg);} 50%{ transform:rotate(-28deg);} }
+  @keyframes walkR{ 0%,100%{ transform:rotate(-28deg);} 50%{ transform:rotate(28deg);} }
+  .walk .arm.l{ animation: walkR .4s infinite; }
+  .walk .arm.r{ animation: walkL .4s infinite; }
+
+  .punch .arm.r{ animation: punchAnim .28s ease; }
+  @keyframes punchAnim{ 0%{ transform:rotate(0deg);} 40%{ transform:rotate(-140deg) translateY(-4px);} 100%{ transform:rotate(0deg);} }
+
+  .kick .leg.r{ animation: kickAnim .4s ease; }
+  @keyframes kickAnim{ 0%{ transform:rotate(0deg);} 45%{ transform:rotate(-95deg) translateX(6px);} 100%{ transform:rotate(0deg);} }
+
+  .block .arm.l{ transform:rotate(-70deg); }
+  .block .arm.r{ transform:rotate(70deg); }
+
+  .victory .arm.l{ animation: cheer .6s infinite alternate; }
+  .victory .arm.r{ animation: cheer .6s infinite alternate-reverse; }
+  @keyframes cheer{ 0%{ transform:rotate(0deg);} 100%{ transform:rotate(-160deg);} }
+
+  .companion{ position:absolute; bottom:23%; transition:none; }
+  .run{ animation-fill-mode:forwards; animation-timing-function:ease-in; }
+  .run-left{ animation-name:runLeft; animation-duration:1s; }
+  .run-right{ animation-name:runRight; animation-duration:1s; }
+  @keyframes runLeft{ to{ transform:translateX(-320px); opacity:0; } }
+  @keyframes runRight{ to{ transform:translateX(320px); opacity:0; } }
+
+  .dmg-pop{
+    position:absolute; font-size:11px; color:#ffdd55; text-shadow:2px 2px 0 #000;
+    opacity:0; pointer-events:none;
+  }
+  .dmg-pop.show{ animation:popUp .7s ease forwards; }
+  @keyframes popUp{ 0%{opacity:0; transform:translateY(0);} 20%{opacity:1;} 100%{opacity:0; transform:translateY(-40px);} }
+
+  .hint{ position:absolute; bottom:6px; left:50%; transform:translateX(-50%); font-size:8px; color:#f4d35e; opacity:0; transition:opacity .2s; text-align:center; width:90%; }
+  .hint.show{ opacity:1; }
+
+  .controls{ width:100%; display:flex; flex-direction:column; align-items:center; gap:8px; padding:10px 0 14px 0; }
+  .row{ display:flex; gap:10px; align-items:center; justify-content:center; flex-wrap:wrap; }
+  .btn{
+    font-family:'Press Start 2P', monospace; font-size:9px; color:#fff; background:#222;
+    border:3px solid #000; padding:10px 14px; cursor:pointer; box-shadow:3px 3px 0 #000;
+  }
+  .btn:active{ transform:translate(2px,2px); box-shadow:1px 1px 0 #000; }
+  .btn:disabled{ opacity:.3; cursor:default; }
+  .btn.move{ background:#333; }
+  .btn.punch{ background:#c23b3b; }
+  .btn.kick{ background:#7a3bc2; }
+  .btn.block{ background:#3b7ac2; }
+
+  /* ---------------- END SCREEN ---------------- */
+  #end-screen{ justify-content:center; }
+  .win-text{ font-size:clamp(12px,3vw,20px); color:var(--ui); text-align:center; text-shadow:3px 3px 0 #7a4b1a; line-height:1.8; }
+  .again-btn{
+    margin-top:22px; background:#3ddc63; color:#0e0e12; font-size:11px;
+    padding:12px 26px; border:3px solid #000; cursor:pointer; box-shadow:4px 4px 0 #000;
+  }
+  .again-btn:active{ transform:translate(3px,3px); box-shadow:1px 1px 0 #000; }
+</style>
+</head>
+<body>
+<div id="frame">
+
+  <!-- SELECT SCREEN -->
+  <div class="screen active" id="select-screen">
+    <h1 class="title">ВЫБЕРИ БОЙЦА</h1>
+    <div class="sub">УЛИЧНЫЙ БОЙ</div>
+    <div class="roster">
+      <div class="fighter-card" id="card-vanek" onclick="selectFighter('vanek')">
+        <div class="preview-box" id="prev-vanek"></div>
+        <div class="fighter-name">ВАНЁК</div>
+        <div class="pick-mark">✓ ВЫБРАН</div>
+      </div>
+      <div class="vs-label">VS</div>
+      <div class="fighter-card" id="card-petyan" onclick="selectFighter('petyan')">
+        <div class="preview-box" id="prev-petyan"></div>
+        <div class="fighter-name">ПЕТЯН</div>
+        <div class="pick-mark">✓ ВЫБРАН</div>
+      </div>
+    </div>
+    <div class="start-banner" id="start-btn" onclick="startFight()">СТАРТ</div>
+  </div>
+
+  <!-- FIGHT SCREEN -->
+  <div class="screen" id="fight-screen">
+    <div class="hud">
+      <div class="hp-block">
+        <div class="hp-name" id="p1-name">-</div>
+        <div class="hp-bar-outer"><div class="hp-bar-inner" id="p1-bar"></div></div>
+      </div>
+      <div class="hp-block" style="text-align:right;">
+        <div class="hp-name" id="p2-name">-</div>
+        <div class="hp-bar-outer right"><div class="hp-bar-inner" id="p2-bar"></div></div>
+      </div>
+    </div>
+    <div class="stage" id="stage">
+      <div class="stars" id="stars"></div>
+      <div class="moon"></div>
+      <!-- buildings injected by JS -->
+      <div id="buildings"></div>
+      <div class="lamp-pole" style="left:50%; height:26%;"></div>
+      <div class="lamp-head" style="left:calc(50% - 7px); bottom:calc(22% + 24%);"></div>
+      <div class="lamp-glow" style="left:calc(50% - 9px); bottom:calc(22% + 16%);"></div>
+      <div class="road-line" style="left:20%; width:10%;"></div>
+      <div class="road-line" style="left:45%; width:10%;"></div>
+      <div class="road-line" style="left:70%; width:10%;"></div>
+
+      <div id="companion1" class="companion"></div>
+      <div id="companion2" class="companion"></div>
+      <div id="fighter1" class="sprite face-right"></div>
+      <div id="fighter2" class="sprite face-left"></div>
+      <div class="dmg-pop" id="pop1"></div>
+      <div class="dmg-pop" id="pop2"></div>
+      <div class="hint" id="hint">ПОДОЙДИ БЛИЖЕ, ЧТОБЫ АТАКОВАТЬ!</div>
+    </div>
+    <div class="controls">
+      <div class="row">
+        <button class="btn move" id="btn-left" >◀ ИДТИ</button>
+        <button class="btn move" id="btn-right">ИДТИ ▶</button>
+      </div>
+      <div class="row">
+        <button class="btn punch" id="btn-punch" onclick="playerAttack('punch')" disabled>УДАР</button>
+        <button class="btn kick" id="btn-kick" onclick="playerAttack('kick')" disabled>ПИНОК</button>
+        <button class="btn block" id="btn-block">БЛОК</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- END SCREEN -->
+  <div class="screen" id="end-screen">
+    <div class="win-text" id="win-text">ПОБЕДА!</div>
+    <button class="again-btn" onclick="resetGame()">ЕЩЁ РАЗ</button>
+  </div>
+
+</div>
+
+<script>
+/* ---------- sprite builders ---------- */
+function buildFighterDOM(el, cls){
+  el.className = 'sprite face-right ' + cls;
+  el.innerHTML = `
+    <div class="part hair hair-shape"></div>
+    <div class="part head">
+      <div class="eye" style="left:4px; top:9px;"><div class="pupil" style="left:1px; top:1px;"></div></div>
+      <div class="eye" style="left:15px; top:9px;"><div class="pupil" style="left:1px; top:1px;"></div></div>
+      <div class="mouth" style="left:8px; top:17px; width:8px; height:2px;"></div>
+    </div>
+    <div class="part arm l"></div>
+    <div class="part torso"></div>
+    <div class="part arm r"></div>
+    <div class="part leg l"><div class="shoe"></div></div>
+    <div class="part leg r"><div class="shoe"></div></div>
+  `;
+}
+
+function buildDog(el){
+  el.innerHTML = `
+    <div style="position:relative; width:70px; height:44px;">
+      <div style="position:absolute; left:8px; top:14px; width:44px; height:22px; background:#c9a06a; border:2px solid #000;"></div>
+      <div style="position:absolute; left:46px; top:4px; width:20px; height:18px; background:#c9a06a; border:2px solid #000;"></div>
+      <div style="position:absolute; left:60px; top:6px; width:4px; height:4px; background:#000;"></div>
+      <div style="position:absolute; left:8px; top:34px; width:5px; height:8px; background:#111;"></div>
+      <div style="position:absolute; left:24px; top:34px; width:5px; height:8px; background:#111;"></div>
+      <div style="position:absolute; left:38px; top:34px; width:5px; height:8px; background:#111;"></div>
+      <div style="position:absolute; left:2px; top:10px; width:10px; height:3px; background:#111;"></div>
+    </div>`;
+}
+
+function buildGirl(el){
+  el.innerHTML = `
+    <div style="position:relative; width:56px; height:90px;">
+      <div style="position:absolute; left:16px; top:0; width:24px; height:22px; background:#4a2f18; border:2px solid #000;"></div>
+      <div style="position:absolute; left:18px; top:4px; width:20px; height:18px; background:#e8b48a; border:2px solid #000;"></div>
+      <div style="position:absolute; left:22px; top:11px; width:3px; height:3px; background:#000;"></div>
+      <div style="position:absolute; left:31px; top:11px; width:3px; height:3px; background:#000;"></div>
+      <div style="position:absolute; left:10px; top:22px; width:36px; height:34px; background:#c23bc2; border:2px solid #000; clip-path:polygon(20% 0,80% 0,100% 100%,0 100%);"></div>
+      <div style="position:absolute; left:12px; top:56px; width:10px; height:26px; background:#e8b48a; border:2px solid #000;"></div>
+      <div style="position:absolute; left:34px; top:56px; width:10px; height:26px; background:#e8b48a; border:2px solid #000;"></div>
+    </div>`;
+}
+
+/* hair shapes per fighter */
+const hairShapes = {
+  vanek:  "left:15px; top:-4px; width:30px; height:12px; background:#151515;",
+  petyan: "left:14px; top:-4px; width:32px; height:11px; background:#4a2f18; border-radius:0 0 0 0;"
+};
+
+/* build previews */
+buildFighterDOM(document.getElementById('prev-vanek'), 'van');
+buildFighterDOM(document.getElementById('prev-petyan'), 'pet');
+document.querySelector('#prev-vanek .hair-shape').style.cssText += hairShapes.vanek;
+document.querySelector('#prev-petyan .hair-shape').style.cssText += hairShapes.petyan;
+
+/* random background: stars + buildings */
+const starsBox = document.getElementById('stars');
+for(let i=0;i<26;i++){
+  const s=document.createElement('div'); s.className='star';
+  s.style.left = Math.random()*100+'%';
+  s.style.top = Math.random()*90+'%';
+  starsBox.appendChild(s);
+}
+const bBox = document.getElementById('buildings');
+let bx=0;
+while(bx<100){
+  const w = 8+Math.random()*8;
+  const h = 20+Math.random()*40;
+  const b=document.createElement('div'); b.className='building';
+  b.style.left=bx+'%'; b.style.width=w+'%'; b.style.height=h+'%'; b.style.bottom='22%';
+  bBox.appendChild(b);
+  const wins = Math.floor(h/14);
+  for(let r=0;r<wins;r++){
+    for(let c=0;c<2;c++){
+      if(Math.random()>0.4){
+        const win=document.createElement('div'); win.className='window';
+        win.style.left=(15+c*45)+'%'; win.style.bottom=(10+r*22)+'%';
+        b.appendChild(win);
+      }
+    }
+  }
+  bx += w+2;
+}
+
+/* ---------- game state ---------- */
+const fighters = {
+  vanek:  { name:"ВАНЁК", cls:"van", companion:"dog" },
+  petyan: { name:"ПЕТЯН", cls:"pet", companion:"girl" }
+};
+
+let selected=null, player=null, enemy=null;
+let hp1=100, hp2=100, battleOver=true;
+let playerX=60, enemyX=520;
+const STAGE_MIN=30, STAGE_MAX_OFFSET=100; // right edge margin
+const RANGE=100, KEEPOUT=50, MOVE_STEP=6;
+let moveLeftHeld=false, moveRightHeld=false;
+let playerBusy=false, blocking=false, enemyAttackWindow=false;
+let aiTimer=null, moveTimer=null;
+
+function showScreen(id){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+
+function selectFighter(key){
+  selected=key;
+  document.getElementById('card-vanek').classList.toggle('picked', key==='vanek');
+  document.getElementById('card-petyan').classList.toggle('picked', key==='petyan');
+  document.getElementById('start-btn').classList.add('ready');
+}
+
+function stageWidth(){ return document.getElementById('stage').clientWidth; }
+
+function startFight(){
+  if(!selected) return;
+  player=selected; enemy = selected==='vanek' ? 'petyan':'vanek';
+  hp1=100; hp2=100; battleOver=false; blocking=false;
+
+  document.getElementById('p1-name').textContent = fighters[player].name;
+  document.getElementById('p2-name').textContent = fighters[enemy].name;
+  updateBars();
+
+  const f1=document.getElementById('fighter1'), f2=document.getElementById('fighter2');
+  buildFighterDOM(f1, fighters[player].cls);
+  buildFighterDOM(f2, fighters[enemy].cls);
+  f1.querySelector('.hair-shape').style.cssText += hairShapes[player];
+  f2.querySelector('.hair-shape').style.cssText += hairShapes[enemy];
+  f1.classList.add('face-right'); f1.classList.remove('face-left');
+  f2.classList.add('face-left'); f2.classList.remove('face-right');
+
+  const c1=document.getElementById('companion1'), c2=document.getElementById('companion2');
+  c1.className='companion'; c2.className='companion';
+  c1.style.opacity=1; c2.style.opacity=1; c1.style.transform=''; c2.style.transform='';
+  if(fighters[player].companion==='dog') buildDog(c1); else buildGirl(c1);
+  if(fighters[enemy].companion==='dog') buildDog(c2); else buildGirl(c2);
+
+  const w = stageWidth();
+  playerX = 40; enemyX = Math.max(w-140, 200);
+  c1.style.left = (playerX-40)+'px';
+  c2.style.left = (enemyX+40)+'px';
+  positionSprites();
+
+  document.getElementById('btn-punch').disabled=true;
+  document.getElementById('btn-kick').disabled=true;
+  document.getElementById('hint').classList.remove('show');
+
+  showScreen('fight-screen');
+
+  setTimeout(()=>{
+    c1.classList.add('run','run-left');
+    c2.classList.add('run','run-right');
+  }, 350);
+
+  clearInterval(aiTimer); clearInterval(moveTimer);
+  aiTimer = setInterval(aiTick, 700);
+  moveTimer = setInterval(movementTick, 40);
+}
+
+function positionSprites(){
+  document.getElementById('fighter1').style.left = playerX+'px';
+  document.getElementById('fighter2').style.left = enemyX+'px';
+  updateAttackAvailability();
+}
+
+function distance(){ return Math.abs(enemyX-playerX); }
+
+function updateAttackAvailability(){
+  const inRange = distance() <= RANGE;
+  document.getElementById('btn-punch').disabled = !inRange || playerBusy || battleOver;
+  document.getElementById('btn-kick').disabled = !inRange || playerBusy || battleOver;
+  document.getElementById('hint').classList.toggle('show', !inRange && !battleOver);
+}
+
+function movementTick(){
+  if(battleOver) return;
+  const w = stageWidth();
+  const maxX = w-STAGE_MAX_OFFSET;
+  const f1 = document.getElementById('fighter1');
+  if(moveLeftHeld && playerX>STAGE_MIN){ playerX -= MOVE_STEP; f1.classList.add('walk'); }
+  else if(moveRightHeld && playerX < enemyX-KEEPOUT){ playerX += MOVE_STEP; f1.classList.add('walk'); }
+  else { f1.classList.remove('walk'); }
+  playerX = Math.max(STAGE_MIN, Math.min(playerX, maxX));
+  positionSprites();
+}
+
+document.getElementById('btn-left').addEventListener('mousedown', ()=>moveLeftHeld=true);
+document.getElementById('btn-left').addEventListener('mouseup', ()=>moveLeftHeld=false);
+document.getElementById('btn-left').addEventListener('mouseleave', ()=>moveLeftHeld=false);
+document.getElementById('btn-left').addEventListener('touchstart', e=>{e.preventDefault(); moveLeftHeld=true;});
+document.getElementById('btn-left').addEventListener('touchend', ()=>moveLeftHeld=false);
+
+document.getElementById('btn-right').addEventListener('mousedown', ()=>moveRightHeld=true);
+document.getElementById('btn-right').addEventListener('mouseup', ()=>moveRightHeld=false);
+document.getElementById('btn-right').addEventListener('mouseleave', ()=>moveRightHeld=false);
+document.getElementById('btn-right').addEventListener('touchstart', e=>{e.preventDefault(); moveRightHeld=true;});
+document.getElementById('btn-right').addEventListener('touchend', ()=>moveRightHeld=false);
+
+const blockBtn = document.getElementById('btn-block');
+blockBtn.addEventListener('mousedown', ()=>{ blocking=true; document.getElementById('fighter1').classList.add('block'); });
+blockBtn.addEventListener('mouseup', ()=>{ blocking=false; document.getElementById('fighter1').classList.remove('block'); });
+blockBtn.addEventListener('mouseleave', ()=>{ blocking=false; document.getElementById('fighter1').classList.remove('block'); });
+blockBtn.addEventListener('touchstart', e=>{e.preventDefault(); blocking=true; document.getElementById('fighter1').classList.add('block');});
+blockBtn.addEventListener('touchend', ()=>{ blocking=false; document.getElementById('fighter1').classList.remove('block'); });
+
+window.addEventListener('keydown', e=>{
+  if(e.key==='ArrowLeft'||e.key==='a') moveLeftHeld=true;
+  if(e.key==='ArrowRight'||e.key==='d') moveRightHeld=true;
+  if(e.key===' '){ blocking=true; document.getElementById('fighter1').classList.add('block'); }
+  if(e.key==='j') playerAttack('punch');
+  if(e.key==='k') playerAttack('kick');
+});
+window.addEventListener('keyup', e=>{
+  if(e.key==='ArrowLeft'||e.key==='a') moveLeftHeld=false;
+  if(e.key==='ArrowRight'||e.key==='d') moveRightHeld=false;
+  if(e.key===' '){ blocking=false; document.getElementById('fighter1').classList.remove('block'); }
+});
+
+function updateBars(){
+  const b1=document.getElementById('p1-bar'), b2=document.getElementById('p2-bar');
+  b1.style.width=Math.max(hp1,0)+'%'; b2.style.width=Math.max(hp2,0)+'%';
+  b1.classList.toggle('low', hp1<30); b2.classList.toggle('low', hp2<30);
+}
+
+function popDamage(id, dmg, xOffset){
+  const el=document.getElementById(id);
+  el.textContent='-'+dmg;
+  el.style.left = xOffset+'px';
+  el.style.top = '10px';
+  el.classList.remove('show'); void el.offsetWidth; el.classList.add('show');
+}
+
+function playerAttack(type){
+  if(battleOver || playerBusy) return;
+  if(distance() > RANGE) return;
+  playerBusy=true;
+  updateAttackAvailability();
+
+  const f1=document.getElementById('fighter1'), f2=document.getElementById('fighter2');
+  f1.classList.add(type);
+  const dmg = type==='punch' ? (6+Math.floor(Math.random()*9)) : (13+Math.floor(Math.random()*10));
+  const duration = type==='punch' ? 280 : 400;
+
+  setTimeout(()=>{
+    hp2 -= dmg;
+    updateBars();
+    popDamage('pop2', dmg, enemyX-playerX>0 ? 40:0);
+    f2.classList.add('shake','hurt-flash');
+    setTimeout(()=>f2.classList.remove('shake','hurt-flash'), 300);
+    f1.classList.remove(type);
+    playerBusy=false;
+    updateAttackAvailability();
+    if(hp2<=0){ endFight(player); }
+  }, duration);
+}
+
+function enemyAttack(type){
+  if(battleOver) return;
+  const f1=document.getElementById('fighter1'), f2=document.getElementById('fighter2');
+  f2.classList.add(type);
+  let dmg = type==='punch' ? (6+Math.floor(Math.random()*9)) : (13+Math.floor(Math.random()*10));
+  const duration = type==='punch' ? 280 : 400;
+  setTimeout(()=>{
+    if(blocking){ dmg = Math.floor(dmg*0.35); }
+    hp1 -= dmg;
+    updateBars();
+    popDamage('pop1', dmg, -10);
+    f1.classList.add('shake');
+    if(!blocking) f1.classList.add('hurt-flash');
+    setTimeout(()=>f1.classList.remove('shake','hurt-flash'), 300);
+    f2.classList.remove(type);
+    if(hp1<=0){ endFight(enemy); }
+  }, duration);
+}
+
+function aiTick(){
+  if(battleOver) return;
+  const f2=document.getElementById('fighter2');
+  if(distance() > RANGE){
+    // move toward player
+    if(enemyX > playerX) enemyX -= 18; else enemyX += 18;
+    const w=stageWidth();
+    enemyX = Math.max(playerX+KEEPOUT, Math.min(enemyX, w-STAGE_MAX_OFFSET));
+    f2.classList.add('walk');
+    setTimeout(()=>f2.classList.remove('walk'), 400);
+    positionSprites();
+  } else {
+    const roll = Math.random();
+    if(roll < 0.55){
+      enemyAttack(Math.random()<0.6 ? 'punch':'kick');
+    } else if(roll < 0.75){
+      // retreat a bit
+      if(enemyX>playerX) enemyX += 20; else enemyX -= 20;
+      const w=stageWidth();
+      enemyX = Math.max(playerX+KEEPOUT, Math.min(enemyX, w-STAGE_MAX_OFFSET));
+      positionSprites();
+    }
+    // else idle
+  }
+}
+
+function endFight(winnerKey){
+  battleOver=true;
+  clearInterval(aiTimer); clearInterval(moveTimer);
+  moveLeftHeld=false; moveRightHeld=false; blocking=false;
+  const winEl = document.getElementById(winnerKey==='vanek' || winnerKey===player ? 'fighter1':'fighter2');
+  const winnerSprite = winnerKey===player ? document.getElementById('fighter1') : document.getElementById('fighter2');
+  winnerSprite.classList.add('victory');
+  document.getElementById('win-text').textContent = fighters[winnerKey].name + ' ПОБЕДИЛ!';
+  setTimeout(()=>showScreen('end-screen'), 900);
+}
+
+function resetGame(){
+  selected=null;
+  document.getElementById('card-vanek').classList.remove('picked');
+  document.getElementById('card-petyan').classList.remove('picked');
+  document.getElementById('start-btn').classList.remove('ready');
+  showScreen('select-screen');
+}
+</script>
+</body>
+</html>
